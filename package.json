@@ -1,13 +1,13 @@
 {
-  "name": "node-contact-form",
+  "name": "railway-contact-form",
   "version": "1.0.0",
-  "description": "Simple Node.js contact form",
+  "description": "Node.js contact form with PostgreSQL",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "pg": "^8.16.3"
   }
 }
-
