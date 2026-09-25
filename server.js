@@ -10,10 +10,14 @@ const PORT = process.env.PORT || 3000;
 // PostgreSQL connection
 // ------------------------------------
 
+console.log("DATABASE_URL exists:", Boolean(process.env.DATABASE_URL));
+console.log("DATABASE_URL length:", process.env.DATABASE_URL?.length || 0);
+
 if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL is not set.");
   process.exit(1);
 }
+
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
