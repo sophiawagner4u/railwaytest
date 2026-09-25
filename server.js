@@ -2,25 +2,24 @@ const express = require("express");
 const path = require("path");
 
 const app = express();
+
 const PORT = process.env.PORT || 3000;
 
-// Parse form data
 app.use(express.urlencoded({ extended: true }));
 
-// Serve HTML/CSS files
 app.use(express.static(path.join(__dirname, "public")));
 
-// Handle contact form
+app.get("/health", (req, res) => {
+  res.json({
+    status: "healthy"
+  });
+});
+
 app.post("/contact", (req, res) => {
   const { name, email, message } = req.body;
 
-  // Basic validation
   if (!name || !email || !message) {
-    return res.status(400).send(`
-      <h1>Error</h1>
-      <p>Please fill in all fields.</p>
-      <a href="/">Go back</a>
-    `);
+    return res.status(400).send("Please fill in all fields.");
   }
 
   console.log("New contact form submission:");
