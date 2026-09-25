@@ -6,34 +6,49 @@ const app = express();
 
 const PORT = process.env.PORT || 3000;
 
-// ==================================================
-// DATABASE CONNECTION
-// TESTING ONLY - DO NOT COMMIT REAL CREDENTIALS
-// TO A PUBLIC GITHUB REPOSITORY.
-// ==================================================
+// ------------------------------------
+// PostgreSQL connection
+// ------------------------------------
 
-const DATABASE_URL =
-  "postgresql://postgres:cuTfDCCLBVdSwQHHZxRgaJEItcmdSNdv@postgres.railway.internal:5432/railway";
+if (!process.env.DATABASE_URL) {
+  console.error("DATABASE_URL is not set.");
+  process.exit(1);
+}
 
 const pool = new Pool({
-  connectionString: DATABASE_URL,
+  connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false
   }
 });
 
-// ==================================================
-// MIDDLEWARE
-// ==================================================
+// ------------------------------------
+// Middleware
+// ------------------------------------
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 app.use(express.static(path.join(__dirname, "public")));
 
-// ==================================================
-// CREATE DATABASE TABLE
-// ==================================================
+// ------------------------------------
+// Test database connection
+// ------------------------------------
+
+async function testDatabaseConnection() {
+  try {
+    const result = await pool.query("SELECT NOW()");
+    console.log("Database connected successfully.");
+    console.log("Database time:", result.rows[0].now);
+  } catch (error) {
+    console.error("Database connection failed:");
+    console.error(error.message);
+  }
+}
+
+// ------------------------------------
+// Create contacts table
+// ------------------------------------
 
 async function createContactsTable() {
   try {
@@ -54,33 +69,9 @@ async function createContactsTable() {
   }
 }
 
-// ==================================================
-// TEST DATABASE CONNECTION
-// ==================================================
-
-async function testDatabase() {
-  try {
-    const result = await pool.query("SELECT NOW()");
-
-    console.log("=================================");
-    console.log("DATABASE CONNECTED");
-    console.log("Database time:", result.rows[0].now);
-    console.log("=================================");
-
-    return true;
-  } catch (error) {
-    console.error("=================================");
-    console.error("DATABASE CONNECTION FAILED");
-    console.error(error.message);
-    console.error("=================================");
-
-    return false;
-  }
-}
-
-// ==================================================
-// HEALTH CHECK
-// ==================================================
+// ------------------------------------
+// Health check
+// ------------------------------------
 
 app.get("/health", async (req, res) => {
   try {
@@ -93,24 +84,32 @@ app.get("/health", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       status: "unhealthy",
-      database: "disconnected",
-      error: error.message
+      database: "disconnected"
     });
   }
 });
 
-// ==================================================
-// CONTACT FORM
-// ==================================================
+// ------------------------------------
+// Submit contact form
+// ------------------------------------
 
 app.post("/contact", async (req, res) => {
   const { name, email, message } = req.body;
 
+  // Basic validation
   if (!name || !email || !message) {
     return res.status(400).send(`
-      <h1>Missing information</h1>
-      <p>Please fill in all fields.</p>
-      <a href="/">Go back</a>
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Error</title>
+      </head>
+      <body>
+        <h1>Missing information</h1>
+        <p>Please fill in all fields.</p>
+        <a href="/">Go back</a>
+      </body>
+      </html>
     `);
   }
 
@@ -121,37 +120,42 @@ app.post("/contact", async (req, res) => {
       VALUES ($1, $2, $3)
       RETURNING id, created_at
       `,
-      [
-        name.trim(),
-        email.trim(),
-        message.trim()
-      ]
+      [name.trim(), email.trim(), message.trim()]
     );
 
-    console.log("New contact saved:", result.rows[0]);
+    console.log("New contact message saved:");
+    console.log({
+      id: result.rows[0].id,
+      name,
+      email
+    });
 
     res.send(`
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Message Sent</title>
 
         <style>
           body {
             font-family: Arial, sans-serif;
             background: #f4f4f4;
-            text-align: center;
-            padding: 80px 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
           }
 
           .box {
-            max-width: 500px;
-            margin: auto;
             background: white;
             padding: 40px;
             border-radius: 10px;
-            box-shadow: 0 4px 20px rgba(0,0,0,.1);
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            max-width: 450px;
           }
 
           h1 {
@@ -161,7 +165,7 @@ app.post("/contact", async (req, res) => {
           a {
             display: inline-block;
             margin-top: 20px;
-            padding: 12px 20px;
+            padding: 10px 20px;
             background: #2563eb;
             color: white;
             text-decoration: none;
@@ -171,55 +175,53 @@ app.post("/contact", async (req, res) => {
       </head>
 
       <body>
-
         <div class="box">
-
           <h1>Message Sent!</h1>
 
           <p>
             Thank you, ${escapeHtml(name)}.
+            Your message has been successfully saved.
           </p>
 
-          <p>
-            Your message has been saved successfully.
-          </p>
-
-          <a href="/">
-            Send another message
-          </a>
-
+          <a href="/">Send another message</a>
         </div>
-
       </body>
       </html>
     `);
 
   } catch (error) {
-    console.error("Database insert failed:");
+    console.error("Failed to save contact message:");
     console.error(error);
 
     res.status(500).send(`
-      <h1>Database Error</h1>
-      <p>Could not save your message.</p>
-      <a href="/">Go back</a>
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Error</title>
+      </head>
+
+      <body>
+        <h1>Something went wrong</h1>
+        <p>We couldn't save your message. Please try again later.</p>
+        <a href="/">Go back</a>
+      </body>
+      </html>
     `);
   }
 });
 
-// ==================================================
-// VIEW SAVED MESSAGES
-// TESTING ONLY
-// ==================================================
+// ------------------------------------
+// View saved messages
+// ------------------------------------
+// This is useful for testing.
+// Do NOT leave this publicly accessible
+// in a real production application.
+// ------------------------------------
 
 app.get("/messages", async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT
-        id,
-        name,
-        email,
-        message,
-        created_at
+      SELECT id, name, email, message, created_at
       FROM contacts
       ORDER BY created_at DESC
     `);
@@ -235,9 +237,9 @@ app.get("/messages", async (req, res) => {
   }
 });
 
-// ==================================================
-// HTML ESCAPE
-// ==================================================
+// ------------------------------------
+// Simple HTML escaping
+// ------------------------------------
 
 function escapeHtml(value) {
   return String(value)
@@ -248,24 +250,16 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
-// ==================================================
-// START SERVER
-// ==================================================
+// ------------------------------------
+// Start server
+// ------------------------------------
 
 async function startServer() {
-
-  const databaseConnected = await testDatabase();
-
-  if (!databaseConnected) {
-    console.error("Server will not start because the database is unavailable.");
-    process.exit(1);
-  }
-
+  await testDatabaseConnection();
   await createContactsTable();
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
-    console.log(`Port: ${PORT}`);
   });
 }
 
